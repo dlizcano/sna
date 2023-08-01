@@ -1,0 +1,157 @@
+---
+title: "Cooperantes Cooperando"
+Author: "Diego J. Lizcano"
+---
+
+## Simple Social Network Analysis for "Coperantes Cooperando" data
+
+Relationships matter, whether with our colleagues, friends or family. We also know that in international development relationships inside an organization or between organizations can mean the difference between smooth flying and turbulence when implementing a program. 
+
+A social network analysis (SNA) is one tool with an ability to help track and understand relationships at a variety of levels. If we want to understand the extent and type of social relationships we are operating within, then conducting a social network analysis can provide necessary insights.
+
+See more details of it [importance here](https://usaidlearninglab.org/community/blog/demystifying-social-network-analysis-development-five-key-design-considerations)
+
+
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+
+library("sna")
+library("network")
+library("igraph")
+library("readxl")
+library("networkD3")
+
+coperantes <- read_excel("data/coperantes.xlsx")
+coperantes <- coperantes[,-1] # elimina rownames
+rownames(coperantes) <- colnames(coperantes) # add rownames
+g <- graph.adjacency(as.matrix(coperantes), weighted=T, mode = "undirected")
+
+# remove loops
+
+g <- simplify(g)
+
+# set labels and degrees of vertices
+V(g)$label <- V(g)$name
+V(g)$degree <- degree(g)
+
+
+# set seed to make the layout reproducible
+
+layout1 <- layout.fruchterman.reingold(g)
+
+
+# Compute node degrees (#links) and use that to set node size:
+deg <- degree(g, mode="all")
+V(g)$size <- deg*3
+
+
+#change arrow size and edge color:
+E(g)$arrow.size <- .5
+E(g)$edge.color <- "gray80"
+E(g)$width <- 1+E(g)$weight/12
+
+
+# plot(g, edge.arrow.size=.1, edge.color="orange",
+# vertex.color="orange", vertex.frame.color="#ffffff",
+#  vertex.label.color="gray30")
+# 
+# 
+# plot(g, vertex.shape="none", vertex.label=V(g)$media,
+# vertex.label.font=2, vertex.label.color="gray40",
+# vertex.label.cex=.7, edge.color="gray85")
+# 
+
+
+#plot(g, layout=layout.kamada.kawai)
+#tkplot(g, layout=layout.kamada.kawai)
+
+
+V(g)$label.cex <- 2.2 * V(g)$degree / max(V(g)$degree)+ .2
+V(g)$label.color <- rgb(0, 0, .2, .8)
+V(g)$frame.color <- NA
+egam <- (log(E(g)$weight)+.4) / max(log(E(g)$weight)+.4)
+E(g)$color <- rgb(.5, .5, 0, egam)
+E(g)$width <- egam
+
+# plot the graph in layout1
+
+plot(g, layout=layout1)
+
+
+
+
+
+
+
+```
+ 
+ The largest the letter means more relations whith other organizations.
+
+
+# Who are USAID "friends"?
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| 
+## immediate neighbors (friends) of USAID
+friends <- ego(g,order=1,nodes="USAID",mindist=1)[[1]] %>% print()
+
+g2 <- make_ego_graph(g, order=2, nodes="USAID")[[1]]
+g2 %>% plot(vertex.size=30)
+
+
+
+
+```
+
+
+## Interactive Network
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# Convert to object suitable for networkD3
+coperantes_d3 <- igraph_to_networkD3(g)
+
+# simpleNetwork(coperantes_d3, height="100px", width="100px")
+
+
+# Convert to igraph
+# SchoolsJournals <- graph.data.frame(as.data.frame(coperantes) , directed = FALSE)
+
+# Remove duplicate edges
+g_simple <- g
+
+# Find group membership
+wt <- cluster_walktrap(g_simple, steps = 3)
+members <- membership(wt)
+
+# Convert igraph to list for networkD3
+g_list <- igraph_to_networkD3(g_simple, group = members)
+
+
+
+# Plot as a forceDirected Network
+forceNetwork(Links = g_list$links, Nodes = g_list$nodes, 
+             Source = 'source',
+             Target = 'target', 
+             NodeID = 'name',  
+             Group = 'group', 
+             opacity = 0.8,
+             fontSize= 15,
+             zoom = TRUE,
+             bounded= TRUE
+             )
+
+
+
+```
+
